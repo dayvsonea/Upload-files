@@ -1,0 +1,20 @@
+Olá {{enviou}},
+
+Conforme combinamos, segue o material gerado a partir do SPED de {{competen}} para que você apresente a outros decisores do escritório (e seja reconhecido como peça‑chave para trazer uma economia de tempo absurda!):
+
+Principais achados
+* {{erros}} erros corrigidos automaticamente
+* {{incons}} inconsistências localizadas na origem
+* Multa potencial evitada: {{multa}}
+
+Sugestão de roteiro:
+1. Como o Corretor de SPED funciona – Slide 3
+2. Processo completo – Slide 5
+3. Benefícios para o escritório – Slide 6
+4. Análise com o arquivo + relatórios (clique e baixe) – Slide 8
+5. O que está incluso na proposta – Slide 13
+
+Tempo total estimado: 10 min — direto ao ponto para mostrar o impacto do Corretor do SPED.
+
+Abraço,
+fico totalmente à disposição para tirar qualquer dúvida que surja.

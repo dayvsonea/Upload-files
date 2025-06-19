@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>Gerador • E‑Auditoria</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='tailwind.min.css') }}">
+</head>
+<body class="bg-gray-100">
+<nav class="bg-blue-900 text-white p-4 mb-6">
+  <div class="container mx-auto font-bold">E‑Auditoria • Gerador de Propostas</div>
+</nav>
+<div class="container mx-auto">
+{% block content %}{% endblock %}
+</div>
+<footer class="text-center text-xs text-gray-500 mt-10 mb-4">© 2025 E‑Auditoria</footer>
+</body>
+</html>
