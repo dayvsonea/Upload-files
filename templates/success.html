@@ -3,9 +3,9 @@
 <div class="bg-white p-8 rounded-xl shadow text-center">
   <h1 class="text-2xl font-bold text-green-600 mb-4">Proposta gerada!</h1>
   <p class="mb-6">Downloads:</p>
-  <div class="flex flex-col items-center gap-3">
+  <div class="flex flex-col gap-3 items-center">
     {% for label,file in files %}
-    <a href="{{ url_for('download', folder=folder, filename=file) }}" class="px-6 py-2 bg-blue-900 text-white rounded w-56">{{label}}</a>
+    <a href="{{ url_for('download', folder=folder, filename=file) }}" class="px-6 py-2 bg-blue-900 text-white rounded w-64">{{ label }}</a>
     {% endfor %}
   </div>
 </div>

@@ -33,7 +33,7 @@
   </div>
   <label><input type="checkbox" name="desconto" checked class="mr-2">Proposta COM desconto</label>
   {% if show_uploads %}
-    {% for idx,label in enumerate(down_labels, start=1) %}
+    {% for label in down_labels %}
       <label class="font-medium">{{ label }}
         <input type="file" name="arquivo" class="border p-2 w-full mt-1">
       </label>

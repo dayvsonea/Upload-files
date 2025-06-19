@@ -1,67 +1,55 @@
-import os, tempfile, subprocess, datetime, uuid, shutil, io, re
-from flask import Flask, render_template, request, send_from_directory, redirect, url_for, flash
+import os, io, re, tempfile, subprocess, datetime, uuid
+from flask import Flask, render_template, request, send_from_directory, redirect, url_for
 from pptx import Presentation
 import pandas as pd, requests
 
-app = Flask(__name__)
-app.secret_key = "ea-secret"
+TEMPLATE_DIR=os.getenv("PPT_TEMPLATE_DIR","./templates_ppt")
+WORKBOOK_XLSX=os.getenv("WORKBOOK_XLSX","")
+UPLOAD_LIMIT=int(os.getenv("UPLOAD_LIMIT","5"))
 
-TEMPLATE_DIR = os.getenv("PPT_TEMPLATE_DIR", "./templates_ppt")
-WORKBOOK_XLSX = os.getenv("WORKBOOK_XLSX", "")
-UPLOAD_LIMIT = int(os.getenv("UPLOAD_LIMIT", "5"))
-
-OPTION_MAP = {
-    "1": "0000 1 Nova Venda COM Arquivo.pptx",
-    "2": "0000 2 Nova Venda SEM Arquivo.pptx",
-    "3": "0000 3 Upgrade COM Arquivo.pptx",
-    "4": "0000 4 Upgrade SEM Arquivo.pptx"
+OPTION_MAP={
+ "1":"0000 1 Nova Venda COM Arquivo.pptx",
+ "2":"0000 2 Nova Venda SEM Arquivo.pptx",
+ "3":"0000 3 Upgrade COM Arquivo.pptx",
+ "4":"0000 4 Upgrade SEM Arquivo.pptx"
 }
+REGEX=re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 
-REGEX = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
+app=Flask(__name__)
+app.secret_key="ea-secret"
 
 def load_workbook():
-    if not WORKBOOK_XLSX:
-        return pd.DataFrame(), pd.DataFrame()
-    data = requests.get(WORKBOOK_XLSX, timeout=20).content
-    xls = pd.ExcelFile(io.BytesIO(data))
-    planos = pd.read_excel(xls, sheet_name="Planos")
-    variaveis = pd.read_excel(xls, sheet_name="Variáveis")
+    if not WORKBOOK_XLSX: return pd.DataFrame(), pd.DataFrame()
+    data=requests.get(WORKBOOK_XLSX, timeout=20).content
+    xls=pd.ExcelFile(io.BytesIO(data))
+    planos=pd.read_excel(xls,"Planos")
+    variaveis=pd.read_excel(xls,"Variáveis")
     return planos, variaveis
 
 planos_df, variaveis_df = load_workbook()
+down_labels = variaveis_df[variaveis_df["Variável"].str.startswith("down")]["Qual conteúdo"].tolist() if not variaveis_df.empty else [f"Arquivo {i}" for i in range(1,UPLOAD_LIMIT+1)]
 
-def get_down_labels():
-    if variaveis_df.empty:
-        return [f"Arquivo {i}" for i in range(1,UPLOAD_LIMIT+1)]
-    subset = variaveis_df[variaveis_df["Variável"].str.startswith("down")]
-    labels = subset["Qual conteúdo"].tolist()
-    return labels + [f"Arquivo {i}" for i in range(len(labels)+1, UPLOAD_LIMIT+1)]
-
-DOWN_LABELS = get_down_labels()
-
-def substitute_ppt(tpl, mapping, out_path):
-    prs = Presentation(tpl)
-    def dist(par,new):
+def substitute_ppt(tpl, mp, out):
+    prs=Presentation(tpl)
+    def dist(p,t):
         idx=0
-        for run in par.runs:
-            ln=len(run.text); run.text=new[idx:idx+ln]; idx+=ln
-        if idx<len(new): par.runs[-1].text+=new[idx:]
-
-    def proc(par, sh):
-        txt="".join(r.text for r in par.runs)
-        if "{{" in txt:
-            def repl(m):
+        for r in p.runs:
+            ln=len(r.text); r.text=t[idx:idx+ln]; idx+=ln
+        if idx<len(t): p.runs[-1].text+=t[idx:]
+    def proc(p,sh):
+        tx="".join(r.text for r in p.runs)
+        if "{{" in tx:
+            def rep(m):
                 k=m.group(1).lower()
-                return "Baixar Arquivo Aqui" if k.startswith("down") else mapping.get(k,m.group(0))
-            dist(par, REGEX.sub(repl, txt))
-            m_dl=REGEX.fullmatch(txt.strip())
-            if m_dl and m_dl.group(1).lower().startswith("down"):
-                sh.click_action.hyperlink.address = mapping[m_dl.group(1).lower()]
-        if mapping.get("valorsemdesc")==mapping.get("valorcomdesc"):
-            low=txt.lower()
-            if "de:" in low: [setattr(r,"text","") for r in par.runs]
-            elif "por:" in low: dist(par,mapping["valorsemdesc"])
-
+                return "Baixar Arquivo Aqui" if k.startswith("down") else mp.get(k,m.group(0))
+            dist(p, REGEX.sub(rep, tx))
+            dl=REGEX.fullmatch(tx.strip())
+            if dl and dl.group(1).lower().startswith("down"):
+                sh.click_action.hyperlink.address=mp[dl.group(1).lower()]
+        if mp.get("valorsemdesc")==mp.get("valorcomdesc"):
+            low=tx.lower()
+            if "de:" in low: [setattr(r,"text","") for r in p.runs]
+            elif "por:" in low: dist(p, mp["valorsemdesc"])
     def walk(s):
         if s.has_text_frame:
             for p in s.text_frame.paragraphs: proc(p,s)
@@ -72,59 +60,51 @@ def substitute_ppt(tpl, mapping, out_path):
         if s.shape_type==6:
             for sub in s.shapes: walk(sub)
     for slide in prs.slides:
-        for shp in slide.shapes:
-            walk(shp)
-    prs.save(out_path)
+        for sh in slide.shapes: walk(sh)
+    prs.save(out)
 
-def convert_pdf(ppt_path):
-    pdf_path = ppt_path.replace(".pptx",".pdf")
+def to_pdf(ppt):
+    pdf=ppt.replace(".pptx",".pdf")
     try:
-        subprocess.run(["soffice","--headless","--convert-to","pdf",ppt_path,"--outdir",os.path.dirname(ppt_path)],check=True,timeout=90)
-        return pdf_path
+        subprocess.run(["soffice","--headless","--convert-to","pdf",ppt,"--outdir",os.path.dirname(ppt)],check=True,timeout=90)
+        return pdf
     except Exception: return ""
 
 @app.route("/")
-def index():
-    return render_template("index.html")
+def index(): return render_template("index.html")
 
 @app.route("/form/<opt>")
 def form(opt):
     if opt not in OPTION_MAP: return redirect(url_for("index"))
-    show_uploads = opt in ["1","3"]
-    return render_template("form.html", opt=opt, template_name=OPTION_MAP[opt], show_uploads=show_uploads, down_labels=DOWN_LABELS)
+    return render_template("form.html", opt=opt, template_name=OPTION_MAP[opt], show_uploads=opt in ["1","3"], down_labels=down_labels)
 
 @app.route("/generate/<opt>", methods=["POST"])
 def generate(opt):
     if opt not in OPTION_MAP: return redirect(url_for("index"))
-    m = {k.lower():v for k,v in request.form.items()}
-    if 'desconto' not in request.form: m["valorcomdesc"]=m.get("valorsemdesc")
-    # csv plan data
-    row = planos_df[planos_df["Plano"].str.strip().str.lower()==m.get("plano","").lower()]
+    mp={k.lower():v for k,v in request.form.items()}
+    if 'desconto' not in request.form: mp["valorcomdesc"]=mp.get("valorsemdesc")
+    row=planos_df[planos_df["Plano"].str.strip().str.lower()==mp.get("plano","").lower()]
     if not row.empty:
         r=row.iloc[0]
-        m.setdefault("descplan", r.get("Descrição",""))
-        m.setdefault("dimensionamento", r.get("Dimensionamento",""))
-    m["dataenvio"]=datetime.datetime.now().strftime("%d/%m/%Y")
-    m["hoje"]=m["dataenvio"]
-    for i in range(1,UPLOAD_LIMIT+1):
-        m[f"down{i}"]="https://www.e-auditoria.com.br"
+        mp.setdefault("descplan", r.get("Descrição",""))
+        mp.setdefault("dimensionamento", r.get("Dimensionamento",""))
+    mp["dataenvio"]=datetime.datetime.now().strftime("%d/%m/%Y")
+    mp["hoje"]=mp["dataenvio"]
+    for i in range(1,UPLOAD_LIMIT+1): mp[f"down{i}"]="https://www.e-auditoria.com.br"
     tmp=tempfile.mkdtemp()
-    tpl=os.path.join(TEMPLATE_DIR, OPTION_MAP[opt])
-    out_ppt=os.path.join(tmp, f"Proposta_{uuid.uuid4().hex}.pptx")
-    substitute_ppt(tpl,m,out_ppt)
-    pdf=convert_pdf(out_ppt)
-    email_txt=render_template("email_template.txt", **m)
-    email_path=os.path.join(tmp,"mensagem_email.txt")
-    open(email_path,"w",encoding="utf-8").write(email_txt)
-    files=[("PPTX",os.path.basename(out_ppt))]
+    ppt_out=os.path.join(tmp,f"Proposta_{uuid.uuid4().hex}.pptx")
+    substitute_ppt(os.path.join(TEMPLATE_DIR, OPTION_MAP[opt]), mp, ppt_out)
+    pdf=to_pdf(ppt_out)
+    email=render_template("email_template.txt", **mp)
+    email_path=os.path.join(tmp,"mensagem_email.txt"); open(email_path,"w",encoding="utf-8").write(email)
+    files=[("PPTX",os.path.basename(ppt_out))]
     if pdf: files.append(("PDF",os.path.basename(pdf)))
     files.append(("Mensagem (.txt)",os.path.basename(email_path)))
     return render_template("success.html", files=files, folder=os.path.basename(tmp))
 
 @app.route("/download/<folder>/<filename>")
-def download(folder, filename):
-    path=os.path.join(tempfile.gettempdir(), folder)
-    return send_from_directory(path, filename, as_attachment=True)
+def download(folder,filename):
+    return send_from_directory(os.path.join(tempfile.gettempdir(),folder), filename, as_attachment=True)
 
 if __name__=="__main__":
     app.run(host="0.0.0.0", port=5000)

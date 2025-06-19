@@ -3,9 +3,9 @@
 <h1 class="text-2xl font-semibold mb-6">Escolha o tipo de proposta</h1>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
   {% for code,title in [('1','Nova Venda – Tenho Arquivo'),('2','Nova Venda – Sem Arquivo'),('3','Upgrade – Tenho Arquivo'),('4','Upgrade – Sem Arquivo')] %}
-  <a href="{{ url_for('form', opt=code) }}" class="p-6 bg-white rounded-xl shadow hover:shadow-lg border">
+  <a href="{{ url_for('form', opt=code) }}" class="p-6 bg-white border rounded-xl shadow hover:shadow-lg">
     <h2 class="font-bold text-blue-900 mb-2">{{ title }}</h2>
-    <p class="text-sm">Gerar proposta rapidamente.</p>
+    <p class="text-sm">Gerar proposta em segundos.</p>
   </a>
   {% endfor %}
 </div>
